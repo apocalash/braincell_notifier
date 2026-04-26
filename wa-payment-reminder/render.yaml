@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: wa-payment-reminder
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: WA_PHONE_NUMBER_ID
+        sync: false
+      - key: WA_ACCESS_TOKEN
+        sync: false
+      - key: WA_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: UPSTASH_REDIS_URL
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: APP_ENV
+        value: production
+
+  - type: cron
+    name: wa-payment-reminder-cron
+    env: python
+    plan: free
+    schedule: "30 2 * * *"    # 02:30 UTC = 08:00 AM IST
+    buildCommand: pip install httpx
+    startCommand: >
+      python -c "
+      import httpx, os, sys;
+      url = os.environ['APP_BASE_URL'] + '/run-scheduler';
+      token = os.environ['WA_WEBHOOK_VERIFY_TOKEN'];
+      r = httpx.post(url, headers={'x-cron-token': token}, timeout=30);
+      print(r.status_code, r.text);
+      sys.exit(0 if r.status_code == 200 else 1)
+      "
+    envVars:
+      - key: APP_BASE_URL
+        sync: false
+      - key: WA_WEBHOOK_VERIFY_TOKEN
+        sync: false
